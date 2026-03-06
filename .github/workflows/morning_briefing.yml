@@ -18,8 +18,7 @@ jobs:
           python-version: '3.11'
 
       - name: 라이브러리 설치
-        run: |
-          pip install yfinance requests finance-datareader
+        run: pip install yfinance requests
 
       - name: 브리핑 실행
         run: python morning_briefing.py
