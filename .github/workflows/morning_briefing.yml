@@ -1,1 +1,25 @@
+name: 퀀트 모닝 브리핑
 
+on:
+  schedule:
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+
+jobs:
+  send-briefing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v3
+
+      - name: Python 설치
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 라이브러리 설치
+        run: |
+          pip install yfinance pykrx requests
+
+      - name: 브리핑 실행
+        run: python morning_briefing.py
