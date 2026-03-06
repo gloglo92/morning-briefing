@@ -19,7 +19,7 @@ jobs:
 
       - name: 라이브러리 설치
         run: |
-          pip install yfinance requests FinanceDataReader
+          pip install yfinance requests finance-datareader
 
       - name: 브리핑 실행
         run: python morning_briefing.py
