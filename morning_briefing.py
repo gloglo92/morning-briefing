@@ -44,6 +44,33 @@ def get_global_data():
             result[name] = None
     return result
 
+def extract_investor(df):
+    """pykrx DataFrame에서 외국인/기관/개인 순매수 추출"""
+    print(f"  columns: {list(df.columns)}")
+    print(f"  index: {list(df.index)}")
+
+    # 순매수 컬럼 찾기 (버전별로 다름)
+    col = None
+    for candidate in ["순매수", "순매수금액", "거래대금", df.columns[-1]]:
+        if candidate in df.columns:
+            col = candidate
+            break
+    if col is None:
+        col = df.columns[-1]
+    print(f"  사용 컬럼: {col}")
+
+    def get_val(keys):
+        for k in keys:
+            if k in df.index:
+                return int(df.loc[k, col] / 1e8)
+        return 0
+
+    return {
+        "외국인": get_val(["외국인합계", "외국인"]),
+        "기관":   get_val(["기관합계", "기관"]),
+        "개인":   get_val(["개인"]),
+    }
+
 def get_krx_data():
     from pykrx import stock
 
@@ -54,18 +81,8 @@ def get_krx_data():
     # 코스피 수급
     try:
         df = stock.get_market_trading_value_by_investor(date_str, date_str, "KOSPI")
-        print(f"코스피 columns: {list(df.columns)}")
-        print(f"코스피 index: {list(df.index)}")
-        print(df)
-        net_col = [c for c in df.columns if "순매수" in c or "net" in c.lower()]
-        col = net_col[0] if net_col else df.columns[-1]
-        result["kospi"] = {
-            "외국인": int(df.loc["외국인합계", col] / 1e8) if "외국인합계" in df.index else
-                      int(df.loc["외국인", col] / 1e8) if "외국인" in df.index else 0,
-            "기관":   int(df.loc["기관합계", col] / 1e8) if "기관합계" in df.index else
-                      int(df.loc["기관", col] / 1e8) if "기관" in df.index else 0,
-            "개인":   int(df.loc["개인", col] / 1e8) if "개인" in df.index else 0,
-        }
+        result["kospi"] = extract_investor(df)
+        print(f"코스피 OK: {result['kospi']}")
     except Exception as e:
         print(f"코스피 오류: {e}\n{traceback.format_exc()}")
         result["kospi"] = None
@@ -73,53 +90,52 @@ def get_krx_data():
     # 코스닥 수급
     try:
         df = stock.get_market_trading_value_by_investor(date_str, date_str, "KOSDAQ")
-        net_col = [c for c in df.columns if "순매수" in c or "net" in c.lower()]
-        col = net_col[0] if net_col else df.columns[-1]
-        result["kosdaq"] = {
-            "외국인": int(df.loc["외국인합계", col] / 1e8) if "외국인합계" in df.index else
-                      int(df.loc["외국인", col] / 1e8) if "외국인" in df.index else 0,
-            "기관":   int(df.loc["기관합계", col] / 1e8) if "기관합계" in df.index else
-                      int(df.loc["기관", col] / 1e8) if "기관" in df.index else 0,
-            "개인":   int(df.loc["개인", col] / 1e8) if "개인" in df.index else 0,
-        }
+        result["kosdaq"] = extract_investor(df)
+        print(f"코스닥 OK: {result['kosdaq']}")
     except Exception as e:
         print(f"코스닥 오류: {e}")
         result["kosdaq"] = None
 
-    # 선물 수급
-    try:
-        df = stock.get_futures_trading_value_by_investor(date_str, date_str, "KOSPI200")
-        print(f"선물 columns: {list(df.columns)}")
-        print(f"선물 index: {list(df.index)}")
-        print(df)
-        net_col = [c for c in df.columns if "순매수" in c or "net" in c.lower()]
-        col = net_col[0] if net_col else df.columns[-1]
-        result["futures"] = {
-            "외국인": int(df.loc["외국인합계", col] / 1e8) if "외국인합계" in df.index else
-                      int(df.loc["외국인", col] / 1e8) if "외국인" in df.index else 0,
-            "기관":   int(df.loc["기관합계", col] / 1e8) if "기관합계" in df.index else
-                      int(df.loc["기관", col] / 1e8) if "기관" in df.index else 0,
-            "개인":   int(df.loc["개인", col] / 1e8) if "개인" in df.index else 0,
-        }
-    except Exception as e:
-        print(f"선물 오류: {e}")
-        result["futures"] = None
+    # 선물 수급 - pykrx 1.2.x 함수명 탐색
+    result["futures"] = None
+    for func_name in ["get_market_trading_value_by_investor_for_futures",
+                      "get_futures_ohlcv_by_date",
+                      "get_index_ohlcv_by_date"]:
+        if hasattr(stock, func_name):
+            print(f"선물 함수 발견: {func_name}")
+            break
+    else:
+        # 대안: ETF/지수 선물 - 투자자별 데이터를 ETF로 대체
+        try:
+            # KODEX 200선물인버스2X ETF(233740) 대신 선물 투자자 직접 조회
+            df = stock.get_market_trading_value_by_investor(date_str, date_str, "KOSPI")
+            # 선물은 별도 API가 없으면 None 처리
+            print("선물: pykrx 1.2.x에서 선물 투자자 API 미지원, 건너뜀")
+        except:
+            pass
 
-    # 프로그램 매매
-    try:
-        df = stock.get_market_net_purchases_of_programs(date_str, date_str, "KOSPI")
-        print(f"프로그램 columns: {list(df.columns)}")
-        print(f"프로그램 index: {list(df.index)}")
-        print(df)
-        # 차익/비차익/전체 합계 행 찾기
-        result["program"] = {
-            "차익":   int(df["차익"].sum() / 1e8) if "차익" in df.columns else 0,
-            "비차익": int(df["비차익"].sum() / 1e8) if "비차익" in df.columns else 0,
-            "전체":   int(df["전체"].sum() / 1e8) if "전체" in df.columns else 0,
-        }
-    except Exception as e:
-        print(f"프로그램매매 오류: {e}\n{traceback.format_exc()}")
-        result["program"] = None
+    # 프로그램 매매 - pykrx 1.2.x 함수명 탐색
+    result["program"] = None
+    prog_funcs = [f for f in dir(stock) if "program" in f.lower() or "prog" in f.lower()]
+    print(f"프로그램 관련 함수: {prog_funcs}")
+
+    for func_name in ["get_market_program_trading_value",
+                      "get_program_trading_trend",
+                      "get_market_trading_value_of_program"]:
+        if hasattr(stock, func_name):
+            try:
+                fn = getattr(stock, func_name)
+                df = fn(date_str, date_str, "KOSPI")
+                print(f"프로그램 {func_name} OK:")
+                print(df)
+                result["program"] = {
+                    "차익":   int(df["차익"].iloc[-1]   / 1e8) if "차익"   in df.columns else 0,
+                    "비차익": int(df["비차익"].iloc[-1] / 1e8) if "비차익" in df.columns else 0,
+                    "전체":   int(df["전체"].iloc[-1]   / 1e8) if "전체"   in df.columns else 0,
+                }
+                break
+            except Exception as e:
+                print(f"프로그램 {func_name} 오류: {e}")
 
     return result
 
@@ -151,7 +167,6 @@ def build_message(global_data, krx_data):
     if oil: L.append(f"{arrow(oil['pct'])} 브렌트유: <b>${oil['price']:.2f}</b> ({oil['pct']:+.2f}%)")
     gold = global_data.get("금")
     if gold: L.append(f"{arrow(gold['pct'])} 국제 금: <b>${gold['price']:,.2f}</b> ({gold['pct']:+.2f}%)")
-
     L.append("")
     L.append("━━━━━━━━━━━━━━━━━━")
     L.append(f"🇰🇷 <b>한국 증시 수급 ({krx_data['date']} 마감)</b>")
@@ -172,7 +187,7 @@ def build_message(global_data, krx_data):
         L.append(f"  기관:   {fmt_val(d.get('기관'))}")
         L.append(f"  개인:   {fmt_val(d.get('개인'))}")
     else:
-        L.append("  데이터 없음")
+        L.append("  데이터 없음 (pykrx 미지원)")
     L.append(f"\n📌 <b>코스피 프로그램 매매</b>")
     d = krx_data.get("program")
     if d:
