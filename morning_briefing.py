@@ -24,6 +24,7 @@ def get_global_data():
         "VIX":     "^VIX",
         "브렌트유": "BZ=F",
         "금":       "GC=F",
+        "원달러":   "KRW=X",
     }
     result = {}
     for name, ticker in tickers.items():
@@ -64,6 +65,7 @@ def build_message(data):
     L.append("━━━━━━━━━━━━━━━━━━")
 
     for name, label, fmt in [
+        ("원달러",   "원/달러 환율", "{:,.2f}원"),
         ("VIX",     "VIX 공포지수", "{:.2f}"),
         ("브렌트유", "브렌트유",     "${:.2f}"),
         ("금",       "국제 금",      "${:,.2f}"),
