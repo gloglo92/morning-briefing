@@ -1,7 +1,4 @@
-“””
-퀀트 모닝 브리핑 텔레그램 봇
-매일 오전 6시 자동 발송 - 글로벌 지표 버전
-“””
+
 
 import requests
 from datetime import datetime, timezone, timedelta
